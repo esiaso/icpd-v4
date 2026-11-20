@@ -26,7 +26,7 @@ class HealthController {
 
 @Module({
   imports: [
-    ThrottlerModule.forRoot([{ name: 'default', ttl: 60_000, limit: 300 }]),
+    ThrottlerModule.forRoot({ throttlers: [{ name: 'default', ttl: 60_000, limit: 300 }], skipIf: () => process.env.NODE_ENV === 'test' && !process.env.TEST_THROTTLE }),
     PrismaModule,
     AuditModule,
     MailModule,

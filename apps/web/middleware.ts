@@ -6,11 +6,11 @@ import { jwtVerify } from 'jose';
  * The access token carries roles/perms claims; an expired token with a refresh cookie is let
  * through so the client can refresh silently.
  */
-const RULES: { prefix: string; perm?: string; roles?: string[] }[] = [
-  { prefix: '/regulator', perm: 'Read Admin Panel' },
-  { prefix: '/auth', perm: 'Read Admin Panel' },
-  { prefix: '/providers', perm: 'Read Provider Panel' },
-  { prefix: '/client', perm: 'Read Developer Panel' },
+const RULES: { prefix: string; perm?: string[] }[] = [
+  { prefix: '/regulator', perm: ['Read Admin Panel'] },
+  { prefix: '/auth', perm: ['Read Admin Panel'] },
+  { prefix: '/providers', perm: ['Read Provider Panel', 'Manage Activities'] },
+  { prefix: '/client', perm: ['Read Developer Panel'] },
   { prefix: '/practitioner' },
   { prefix: '/profile' },
   { prefix: '/change-password' },
@@ -40,7 +40,7 @@ export async function middleware(req: NextRequest) {
     const roles = (payload.roles as string[]) ?? [];
     const perms = (payload.perms as string[]) ?? [];
     if (roles.includes('Super Admin')) return NextResponse.next();
-    if (rule.perm && !perms.includes(rule.perm)) {
+    if (rule.perm && !rule.perm.some((p) => perms.includes(p))) {
       const url = req.nextUrl.clone();
       url.pathname = '/forbidden';
       url.search = '';
