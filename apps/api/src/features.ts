@@ -8,6 +8,7 @@ import { ActivitiesModule } from './activities/activities.controller';
 import { ClaimsModule } from './claims/claims.controller';
 import { ComplianceModule } from './compliance/compliance.controller';
 import { RegistrationModule } from './registration/registration.controller';
+import { PractitionersModule } from './practitioners/practitioners.controller';
 
 /** Feature modules, added phase by phase. */
-export const FEATURE_MODULES: any[] = [JobsModule, MaintenanceModule, SettingsModule, CmsModule, PublicModule, ProvidersModule, ActivitiesModule, ClaimsModule, ComplianceModule, RegistrationModule];
+export const FEATURE_MODULES: any[] = [JobsModule, MaintenanceModule, SettingsModule, CmsModule, PublicModule, ProvidersModule, ActivitiesModule, ClaimsModule, ComplianceModule, RegistrationModule, PractitionersModule];
