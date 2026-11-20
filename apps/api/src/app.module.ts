@@ -1,6 +1,7 @@
 import { Controller, Get, MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { ConsumerThrottlerGuard } from './public-api/api-consumer.guard';
 import { PrismaModule, PrismaService } from './common/prisma.service';
 import { ErrorEnvelopeFilter } from './common/errors';
 import { RequestLogMiddleware } from './common/request-log.middleware';
@@ -36,7 +37,7 @@ class HealthController {
   ],
   controllers: [HealthController, UsersController],
   providers: [
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: ConsumerThrottlerGuard },
     { provide: APP_GUARD, useClass: AuthGuard },
     { provide: APP_FILTER, useClass: ErrorEnvelopeFilter },
   ],

@@ -103,11 +103,15 @@ export class PointsService {
     const input = this.input(a);
     const roles = await this.roles(tx, a.id, p.regNo);
     const existing = await tx.cpdClaim.findFirst({ where: { practitionerId: p.id, activityId: a.id, deletedAt: null } });
-    if (!canStillEarn(existing ? num(existing.cpdPoints) : null, input, roles)) {
-      throw new ClaimError('MAX_POINTS', o.method === 'attendance' ? MSG.MAX_CLAIMS_MADE : MSG.MAX_POINTS);
-    }
+    const effectiveRoles = o.includeRoleBonus ? roles : { ...roles, unawardedPresenter: false, unawardedModerator: false };
+    const maxed = () => new ClaimError('MAX_POINTS', o.method === 'attendance' ? MSG.MAX_CLAIMS_MADE : MSG.MAX_POINTS);
+    if (!canStillEarn(existing ? num(existing.cpdPoints) : null, input, effectiveRoles)) throw maxed();
+    const existingBonus = existing
+      ? num((await tx.cpdClaimEntry.aggregate({ where: { claimId: existing.id, kind: { in: ['presenter', 'moderator'] } }, _sum: { points: true } }))._sum.points)
+      : 0;
     const marker = o.method === 'token' ? o.token! : o.method;
-    const award = computeAward(input, roles, { baseMarker: marker, includeRoleBonus: o.includeRoleBonus });
+    const award = computeAward(input, effectiveRoles, { baseMarker: marker, includeRoleBonus: o.includeRoleBonus, existingPoints: existing ? num(existing.cpdPoints) : 0, existingBonus });
+    if (award.total <= 0 && !award.markPresenterAwarded && !award.markModeratorAwarded) throw maxed();
     const calYear = claimCalYear(input);
     const markers = award.parts.map((x) => x.marker);
     const claim = existing
@@ -136,13 +140,14 @@ export class PointsService {
           },
         });
     const specialityIds = (a.specializationAreas as number[]) ?? [];
-    for (const part of award.parts) {
+    // The token is recorded on the base entry, or on the first entry when only a bonus was due.
+    for (const [i, part] of award.parts.entries()) {
       await tx.cpdClaimEntry.create({
         data: {
           claimId: claim.id,
           kind: part.kind,
           source: o.method,
-          token: part.kind === 'base' && o.method === 'token' ? o.token : null,
+          token: i === 0 && o.method === 'token' ? o.token : null,
           points: part.points,
           activityTypeId: a.activityTypeId,
           specialityIds,

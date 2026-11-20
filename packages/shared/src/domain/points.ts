@@ -74,9 +74,14 @@ export interface AwardComputation {
 export function computeAward(
   a: ActivityPointsInput,
   r: RoleState,
-  opts: { baseMarker: string; includeRoleBonus: boolean },
+  opts: { baseMarker: string; includeRoleBonus: boolean; existingPoints?: number | null; existingBonus?: number },
 ): AwardComputation {
-  const parts: AwardPart[] = [{ kind: 'base', points: round2(a.basePoints), marker: opts.baseMarker }];
+  // Base points never take the activity above maxActivityPoints; role bonuses sit on top.
+  // (Legacy could overshoot the max when a pending role bonus let canStillEarn pass.)
+  const existingBase = Math.max(0, (opts.existingPoints ?? 0) - (opts.existingBonus ?? 0));
+  const room = Math.max(0, maxActivityPoints(a) - existingBase);
+  const base = round2(Math.min(a.basePoints, room));
+  const parts: AwardPart[] = base > 0 ? [{ kind: 'base', points: base, marker: opts.baseMarker }] : [];
   let markPresenterAwarded = false;
   let markModeratorAwarded = false;
   if (opts.includeRoleBonus) {

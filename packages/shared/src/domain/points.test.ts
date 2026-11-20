@@ -74,6 +74,25 @@ describe('computeAward', () => {
   });
 });
 
+describe('computeAward caps base at the activity max', () => {
+  it('adds only the remaining room', () => {
+    const r = computeAward(act(), NO_ROLE, { baseMarker: 't', includeRoleBonus: true, existingPoints: 5 });
+    expect(r.total).toBe(1);
+  });
+  it('awards only the pending bonus once the max is reached', () => {
+    const r = computeAward(act(), presenter, { baseMarker: 't', includeRoleBonus: true, existingPoints: 6 });
+    expect(r.parts.map((p) => p.kind)).toEqual(['presenter']);
+    expect(r.total).toBe(3);
+  });
+  it('ignores already-awarded bonus points when measuring room', () => {
+    const r = computeAward(act(), NO_ROLE, { baseMarker: 't', includeRoleBonus: true, existingPoints: 7, existingBonus: 3 });
+    expect(r.total).toBe(2);
+  });
+  it('API claims at the max award nothing', () => {
+    expect(computeAward(act(), presenter, { baseMarker: 'API', includeRoleBonus: false, existingPoints: 6 }).total).toBe(0);
+  });
+});
+
 describe('claimCalYear', () => {
   it('uses expiry year when in the past', () =>
     expect(claimCalYear({ expiryDate: '2024-12-31' }, new Date('2026-03-01T00:00:00Z'))).toBe(2024));

@@ -14,6 +14,8 @@ import {
 import { config } from '../common/config';
 import { AppError, Forbidden, Unauthorized } from '../common/errors';
 import { IdentityService } from './identity.service';
+import { PrismaService } from '../common/prisma.service';
+import { sha256 } from '../common/crypto';
 
 export const ACCESS_COOKIE = 'icpd_at';
 export const REFRESH_COOKIE = 'icpd_rt';
@@ -38,6 +40,7 @@ export class AuthGuard implements CanActivate {
     private readonly reflector: Reflector,
     private readonly jwt: JwtService,
     private readonly identity: IdentityService,
+    private readonly prisma: PrismaService,
   ) {}
 
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
@@ -48,7 +51,14 @@ export class AuthGuard implements CanActivate {
     if ((req as any).apiConsumer) return true;
 
     const { token, viaCookie } = readAccessToken(req);
-    if (token) {
+    if (token?.startsWith('icpd_pat_')) {
+      // Personal access token (developer dashboard).
+      const pat = await this.prisma.personalAccessToken.findUnique({ where: { tokenHash: sha256(token) } });
+      if (!pat || pat.revokedAt) throw Unauthorized('Invalid access token');
+      const user = await this.identity.load(pat.userId);
+      if (user) req.user = user;
+      this.prisma.personalAccessToken.update({ where: { id: pat.id }, data: { lastUsedAt: new Date() } }).catch(() => undefined);
+    } else if (token) {
       try {
         const payload = await this.jwt.verifyAsync<{ sub: string; typ: string }>(token, {
           secret: config.jwtAccessSecret,
