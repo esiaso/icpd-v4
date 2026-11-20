@@ -1,0 +1,1121 @@
+// ICPD v4 schema (spec section 4). Tables are snake_case; columns are camelCase.
+// Every business table carries createdBy/updatedBy and soft-delete (deletedAt/deletedBy).
+// Points use Decimal(8,2). Date-only values use @db.Date; instants use timestamptz.
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [citext]
+}
+
+// ───────────────────────── 4.1 Identity ─────────────────────────
+
+model User {
+  id              BigInt    @id @default(autoincrement())
+  publicId        String    @unique @default(uuid()) @db.Uuid
+  name            String
+  email           String    @unique @db.Citext
+  passwordHash    String?
+  emailVerifiedAt DateTime? @db.Timestamptz
+  avatarUrl       String?
+  categoryId      Int?
+  lastLoginAt     DateTime? @db.Timestamptz
+  legacyId        BigInt?   @unique
+  createdAt       DateTime  @default(now()) @db.Timestamptz
+  updatedAt       DateTime  @updatedAt @db.Timestamptz
+  createdBy       BigInt?
+  updatedBy       BigInt?
+  deletedAt       DateTime? @db.Timestamptz
+  deletedBy       BigInt?
+
+  category       UserCategory?    @relation(fields: [categoryId], references: [id])
+  roles          UserRole[]
+  permissions    UserPermission[]
+  practitioner   Practitioner?
+  providerUsers  ProviderUser[]
+  refreshTokens  RefreshToken[]
+  authLogs       AuthLog[]
+  personalTokens PersonalAccessToken[]
+
+  @@map("users")
+}
+
+model Role {
+  id          Int              @id @default(autoincrement())
+  name        String           @unique
+  createdAt   DateTime         @default(now()) @db.Timestamptz
+  permissions RolePermission[]
+  users       UserRole[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id        Int              @id @default(autoincrement())
+  name      String           @unique
+  createdAt DateTime         @default(now()) @db.Timestamptz
+  roles     RolePermission[]
+  users     UserPermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       Int
+  permissionId Int
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model UserRole {
+  userId BigInt
+  roleId Int
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@map("user_roles")
+}
+
+model UserPermission {
+  userId       BigInt
+  permissionId Int
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([userId, permissionId])
+  @@map("user_permissions")
+}
+
+model AuthLog {
+  id              BigInt    @id @default(autoincrement())
+  userId          BigInt?
+  email           String?
+  ip              String?
+  userAgent       String?
+  loginAt         DateTime  @default(now()) @db.Timestamptz
+  loginSuccessful Boolean
+  logoutAt        DateTime? @db.Timestamptz
+  location        String?
+  user            User?     @relation(fields: [userId], references: [id])
+
+  @@index([userId, loginAt])
+  @@map("auth_logs")
+}
+
+model PasswordResetToken {
+  id        BigInt    @id @default(autoincrement())
+  userId    BigInt
+  tokenHash String    @unique
+  expiresAt DateTime  @db.Timestamptz
+  usedAt    DateTime? @db.Timestamptz
+  createdAt DateTime  @default(now()) @db.Timestamptz
+
+  @@map("password_reset_tokens")
+}
+
+model EmailVerificationToken {
+  id        BigInt    @id @default(autoincrement())
+  userId    BigInt
+  tokenHash String    @unique
+  expiresAt DateTime  @db.Timestamptz
+  usedAt    DateTime? @db.Timestamptz
+  createdAt DateTime  @default(now()) @db.Timestamptz
+
+  @@map("email_verification_tokens")
+}
+
+model RefreshToken {
+  id         BigInt    @id @default(autoincrement())
+  userId     BigInt
+  tokenHash  String    @unique
+  familyId   String    @db.Uuid
+  expiresAt  DateTime  @db.Timestamptz
+  revokedAt  DateTime? @db.Timestamptz
+  replacedBy BigInt?
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime  @default(now()) @db.Timestamptz
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([familyId])
+  @@map("refresh_tokens")
+}
+
+model PersonalAccessToken {
+  id         BigInt    @id @default(autoincrement())
+  userId     BigInt
+  name       String
+  tokenHash  String    @unique
+  lastUsedAt DateTime? @db.Timestamptz
+  createdAt  DateTime  @default(now()) @db.Timestamptz
+  revokedAt  DateTime? @db.Timestamptz
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("personal_access_tokens")
+}
+
+/// Legacy sha1 hashes kept only for the /migrate login (spec 11.3). Cleared on use.
+model LegacyCredential {
+  id             BigInt    @id @default(autoincrement())
+  practitionerId BigInt    @unique
+  sha1Hash       String
+  legacyRoleId   Int?
+  usedAt         DateTime? @db.Timestamptz
+  createdAt      DateTime  @default(now()) @db.Timestamptz
+
+  @@map("legacy_credentials")
+}
+
+// ───────────────────── 4.2 Reference data / settings ─────────────────────
+
+model UserCategory {
+  id            Int       @id @default(autoincrement())
+  name          String
+  prefixLetter  String    @db.VarChar(2)
+  minimumLength Int       @default(2)
+  archived      Boolean   @default(false)
+  legacyId      Int?      @unique
+  createdAt     DateTime  @default(now()) @db.Timestamptz
+  updatedAt     DateTime  @updatedAt @db.Timestamptz
+  createdBy     BigInt?
+  updatedBy     BigInt?
+  deletedAt     DateTime? @db.Timestamptz
+  deletedBy     BigInt?
+
+  users         User[]
+  practitioners Practitioner[]
+
+  @@map("user_categories")
+}
+
+model Speciality {
+  id          Int       @id @default(autoincrement())
+  name        String
+  description String?
+  legacyId    Int?      @unique
+  createdAt   DateTime  @default(now()) @db.Timestamptz
+  updatedAt   DateTime  @updatedAt @db.Timestamptz
+  createdBy   BigInt?
+  updatedBy   BigInt?
+  deletedAt   DateTime? @db.Timestamptz
+  deletedBy   BigInt?
+
+  practitioners Practitioner[]           @relation("PrimarySpeciality")
+  links         PractitionerSpeciality[]
+
+  @@map("specialities")
+}
+
+model Title {
+  id        Int       @id @default(autoincrement())
+  name      String
+  legacyId  Int?      @unique
+  createdAt DateTime  @default(now()) @db.Timestamptz
+  deletedAt DateTime? @db.Timestamptz
+
+  @@map("titles")
+}
+
+model Country {
+  id        Int       @id @default(autoincrement())
+  name      String
+  code      String?   @db.VarChar(3)
+  legacyId  Int?      @unique
+  createdAt DateTime  @default(now()) @db.Timestamptz
+  deletedAt DateTime? @db.Timestamptz
+
+  @@map("countries")
+}
+
+model AcademicQualification {
+  id        Int       @id @default(autoincrement())
+  name      String
+  legacyId  Int?      @unique
+  createdAt DateTime  @default(now()) @db.Timestamptz
+  deletedAt DateTime? @db.Timestamptz
+
+  @@map("academic_qualifications")
+}
+
+model MedicalSchool {
+  id        Int       @id @default(autoincrement())
+  name      String
+  country   String?
+  legacyId  Int?      @unique
+  createdAt DateTime  @default(now()) @db.Timestamptz
+  deletedAt DateTime? @db.Timestamptz
+
+  @@map("medical_schools")
+}
+
+model Facility {
+  id        Int       @id @default(autoincrement())
+  name      String
+  county    String?
+  legacyId  Int?      @unique
+  createdAt DateTime  @default(now()) @db.Timestamptz
+  deletedAt DateTime? @db.Timestamptz
+
+  @@map("facilities")
+}
+
+model ActivityType {
+  id                Int       @id @default(autoincrement())
+  name              String
+  category          String?
+  description       String?
+  evidenceRequired  String?
+  cpdPoints         Decimal   @default(0) @db.Decimal(8, 2)
+  presenterPoints   Decimal   @default(0) @db.Decimal(8, 2)
+  moderatorPoints   Decimal   @default(0) @db.Decimal(8, 2)
+  maxSessionPoints  Decimal?  @db.Decimal(8, 2)
+  maxActivityPoints Decimal?  @db.Decimal(8, 2)
+  maxYearlyPoints   Decimal?  @db.Decimal(8, 2)
+  /// e.g. "once" = may be claimed once per calendar year (internship-type claims)
+  claimCondition    String?
+  /// legacy int: 2 = online
+  deliveryMode      Int?
+  /// legacy int: 1 = provider/API may create
+  initiator         Int?
+  eventBased        Boolean   @default(true)
+  archived          Boolean   @default(false)
+  legacyId          Int?      @unique
+  createdAt         DateTime  @default(now()) @db.Timestamptz
+  updatedAt         DateTime  @updatedAt @db.Timestamptz
+  createdBy         BigInt?
+  updatedBy         BigInt?
+  deletedAt         DateTime? @db.Timestamptz
+  deletedBy         BigInt?
+
+  activities Activity[]
+  nonToken   NonTokenClaim[]
+
+  @@map("activity_types")
+}
+
+/// Key/value settings editable by the regulator (e.g. compliance.multiSpecialityMode).
+model Setting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt @db.Timestamptz
+  updatedBy BigInt?
+
+  @@map("settings")
+}
+
+// ───────────────────────── 4.3 Practitioners ─────────────────────────
+
+enum PractitionerStatus {
+  presubmission
+  submitted
+  screening
+  returned
+  approved
+  registered
+  incomplete
+}
+
+model Practitioner {
+  id                       BigInt             @id @default(autoincrement())
+  publicId                 String             @unique @default(uuid()) @db.Uuid
+  userId                   BigInt?            @unique
+  regNo                    String?
+  applicationNo            String?            @unique @db.VarChar(12)
+  titleId                  Int?
+  firstName                String
+  otherNames               String?
+  lastName                 String
+  dob                      DateTime?          @db.Date
+  nationalId               String?
+  email                    String?            @db.Citext
+  mobile1                  String?
+  mobile2                  String?
+  nationality              String?
+  countryOfResidenceId     Int?
+  physicalAddress          String?
+  postalAddress            String?
+  postalCode               String?
+  city                     String?
+  categoryId               Int?
+  specializationId         Int?
+  specializationOther      String?
+  qualifications           String?
+  qualificationYear        Int?
+  qualificationInstitution String?
+  qualificationCountry     String?
+  workplaceInstitution     String?
+  workplaceCountryId       Int?
+  photoUrl                 String?
+  status                   PractitionerStatus @default(presubmission)
+  applicationStep          String             @default("profile")
+  dateOfApplication        DateTime?          @db.Timestamptz
+  dateRegistered           DateTime?          @db.Date
+  legacyId                 BigInt?            @unique
+  createdAt                DateTime           @default(now()) @db.Timestamptz
+  updatedAt                DateTime           @updatedAt @db.Timestamptz
+  createdBy                BigInt?
+  updatedBy                BigInt?
+  deletedAt                DateTime?          @db.Timestamptz
+  deletedBy                BigInt?
+
+  user           User?                    @relation(fields: [userId], references: [id])
+  category       UserCategory?            @relation(fields: [categoryId], references: [id])
+  specialization Speciality?              @relation("PrimarySpeciality", fields: [specializationId], references: [id])
+  specialities   PractitionerSpeciality[]
+  academics      PractitionerAcademic[]
+  facilities     PractitionerFacility[]
+  claims         CpdClaim[]
+  nonTokenClaims NonTokenClaim[]
+  exemptions     Exemption[]
+  logs           PractitionerLog[]
+  verifications  ApplicationVerification[]
+  sectionChecks  ApplicationSectionVerification[]
+  claimedTokens  ActivityToken[]
+  complianceRows ComplianceResult[]
+
+  @@index([regNo])
+  @@index([nationalId])
+  @@index([email])
+  @@index([status])
+  @@map("practitioners")
+}
+
+model PractitionerSpeciality {
+  id             BigInt       @id @default(autoincrement())
+  practitionerId BigInt
+  specialityId   Int
+  isPrimary      Boolean      @default(false)
+  createdAt      DateTime     @default(now()) @db.Timestamptz
+  createdBy      BigInt?
+  practitioner   Practitioner @relation(fields: [practitionerId], references: [id], onDelete: Cascade)
+  speciality     Speciality   @relation(fields: [specialityId], references: [id])
+
+  @@unique([practitionerId, specialityId])
+  @@map("practitioner_specialities")
+}
+
+model PractitionerAcademic {
+  id              BigInt       @id @default(autoincrement())
+  practitionerId  BigInt
+  qualificationId Int?
+  qualification   String?
+  institution     String?
+  country         String?
+  year            Int?
+  createdAt       DateTime     @default(now()) @db.Timestamptz
+  updatedAt       DateTime     @updatedAt @db.Timestamptz
+  createdBy       BigInt?
+  updatedBy       BigInt?
+  deletedAt       DateTime?    @db.Timestamptz
+  deletedBy       BigInt?
+  practitioner    Practitioner @relation(fields: [practitionerId], references: [id], onDelete: Cascade)
+
+  @@map("practitioner_academics")
+}
+
+model PractitionerFacility {
+  id             BigInt       @id @default(autoincrement())
+  practitionerId BigInt
+  facilityId     Int?
+  institution    String
+  countryId      Int?
+  position       String?
+  current        Boolean      @default(true)
+  createdAt      DateTime     @default(now()) @db.Timestamptz
+  updatedAt      DateTime     @updatedAt @db.Timestamptz
+  createdBy      BigInt?
+  updatedBy      BigInt?
+  deletedAt      DateTime?    @db.Timestamptz
+  deletedBy      BigInt?
+  practitioner   Practitioner @relation(fields: [practitionerId], references: [id], onDelete: Cascade)
+
+  @@map("practitioner_facilities")
+}
+
+model PractitionerLog {
+  id             BigInt       @id @default(autoincrement())
+  practitionerId BigInt
+  logType        String
+  logDate        DateTime     @default(now()) @db.Timestamptz
+  notes          String?
+  createdBy      BigInt?
+  practitioner   Practitioner @relation(fields: [practitionerId], references: [id], onDelete: Cascade)
+
+  @@index([practitionerId, logDate])
+  @@map("practitioner_logs")
+}
+
+// ───────────────────── 4.4 Application screening ─────────────────────
+
+model Checklist {
+  id        Int       @id @default(autoincrement())
+  item      String
+  slug      String
+  evidence  Json      @default("[]")
+  module    Json      @default("[]")
+  sortOrder Int       @default(0)
+  createdAt DateTime  @default(now()) @db.Timestamptz
+  updatedAt DateTime  @updatedAt @db.Timestamptz
+  deletedAt DateTime? @db.Timestamptz
+
+  @@map("checklists")
+}
+
+model ApplicationVerification {
+  id                      BigInt       @id @default(autoincrement())
+  practitionerId          BigInt
+  officerUserId           BigInt?
+  checklistId             Int?
+  stage                   String       @default("screening")
+  recommendation          String?
+  applicationReceivedDate DateTime?    @db.Timestamptz
+  returnedSections        Json?
+  approvalComment         String?
+  createdAt               DateTime     @default(now()) @db.Timestamptz
+  updatedAt               DateTime     @updatedAt @db.Timestamptz
+  practitioner            Practitioner @relation(fields: [practitionerId], references: [id], onDelete: Cascade)
+  sections                ApplicationSectionVerification[]
+
+  @@index([practitionerId])
+  @@map("application_verifications")
+}
+
+model ApplicationSectionVerification {
+  id             BigInt                  @id @default(autoincrement())
+  practitionerId BigInt
+  officerUserId  BigInt?
+  verificationId BigInt
+  checklistId    Int
+  sectionName    String
+  recommendation String
+  notes          String?
+  stage          String                  @default("screening")
+  documentRequested Boolean              @default(false)
+  createdAt      DateTime                @default(now()) @db.Timestamptz
+  updatedAt      DateTime                @updatedAt @db.Timestamptz
+  practitioner   Practitioner            @relation(fields: [practitionerId], references: [id], onDelete: Cascade)
+  verification   ApplicationVerification @relation(fields: [verificationId], references: [id], onDelete: Cascade)
+
+  @@unique([verificationId, checklistId])
+  @@map("application_section_verifications")
+}
+
+// ───────────────────────── 4.5 Providers ─────────────────────────
+
+model Provider {
+  id              BigInt    @id @default(autoincrement())
+  publicId        String    @unique @default(uuid()) @db.Uuid
+  regNo           String?
+  name            String
+  specialities    Json      @default("[]")
+  contactName     String?
+  physicalAddress String?
+  street          String?
+  building        String?
+  postalAddress   String?
+  postalCode      String?
+  town            String?
+  phone           String?
+  fixedLine       String?
+  email           String?   @db.Citext
+  website         String?
+  facebook        String?
+  twitter         String?
+  linkedin        String?
+  logoUrl         String?
+  location        String?
+  status          String    @default("active")
+  effectiveDate   DateTime? @db.Date
+  dateAdded       DateTime  @default(now()) @db.Timestamptz
+  addedBy         BigInt?
+  legacyId        BigInt?   @unique
+  createdAt       DateTime  @default(now()) @db.Timestamptz
+  updatedAt       DateTime  @updatedAt @db.Timestamptz
+  createdBy       BigInt?
+  updatedBy       BigInt?
+  deletedAt       DateTime? @db.Timestamptz
+  deletedBy       BigInt?
+
+  users         ProviderUser[]
+  statusHistory ProviderStatusHistory[]
+  activities    Activity[]
+  apiApps       ApiConsumerApp[]
+
+  @@map("providers")
+}
+
+model ProviderUser {
+  id         BigInt    @id @default(autoincrement())
+  providerId BigInt
+  userId     BigInt
+  status     String    @default("Active")
+  createdAt  DateTime  @default(now()) @db.Timestamptz
+  updatedAt  DateTime  @updatedAt @db.Timestamptz
+  createdBy  BigInt?
+  updatedBy  BigInt?
+  deletedAt  DateTime? @db.Timestamptz
+  deletedBy  BigInt?
+  provider   Provider  @relation(fields: [providerId], references: [id])
+  user       User      @relation(fields: [userId], references: [id])
+
+  @@index([userId, status])
+  @@map("provider_users")
+}
+
+model ProviderStatusHistory {
+  id            BigInt   @id @default(autoincrement())
+  providerId    BigInt
+  status        String
+  notes         String?
+  effectiveDate DateTime @db.Date
+  createdAt     DateTime @default(now()) @db.Timestamptz
+  createdBy     BigInt?
+  provider      Provider @relation(fields: [providerId], references: [id])
+
+  @@map("provider_status_history")
+}
+
+// ───────────────────────── 4.6 Activities ─────────────────────────
+
+model Activity {
+  id                  BigInt    @id @default(autoincrement())
+  publicId            String    @unique @default(uuid()) @db.Uuid
+  activityNo          String?   @unique
+  providerId          BigInt
+  activityTypeId      Int
+  name                String
+  shortTitle          String?
+  topic               String?
+  objectives          String?
+  description         String?
+  coordinator         String?
+  deliveryMode        String    @default("physical")
+  venue               String?
+  venueOnline         String?
+  city                String?
+  gpsLat              Decimal?  @db.Decimal(10, 7)
+  gpsLng              Decimal?  @db.Decimal(10, 7)
+  primaryAudience     String?
+  specializationAreas Json      @default("[]")
+  releaseDate         DateTime  @db.Date
+  expiryDate          DateTime  @db.Date
+  endTime             String?
+  numSessions         Int       @default(1)
+  multiSessions       Boolean   @default(false)
+  cpdPoints           Decimal   @default(0) @db.Decimal(8, 2)
+  maxPoints           Decimal   @default(0) @db.Decimal(8, 2)
+  published           Boolean   @default(false)
+  datePublished       DateTime? @db.Timestamptz
+  featured            Boolean   @default(false)
+  visibility          String?   @default("public")
+  onlineRegistration  Boolean   @default(false)
+  archived            Boolean   @default(false)
+  dateArchived        DateTime? @db.Timestamptz
+  posterUrl           String?
+  qrCodeUrl           String?
+  shortenedUrl        String?
+  hashtag             String?
+  activityCost        String?
+  subProviderUnit     String?
+  legacyId            BigInt?   @unique
+  createdAt           DateTime  @default(now()) @db.Timestamptz
+  updatedAt           DateTime  @updatedAt @db.Timestamptz
+  createdBy           BigInt?
+  updatedBy           BigInt?
+  deletedAt           DateTime? @db.Timestamptz
+  deletedBy           BigInt?
+
+  provider   Provider            @relation(fields: [providerId], references: [id])
+  type       ActivityType        @relation(fields: [activityTypeId], references: [id])
+  presenters ActivityPresenter[]
+  moderators ActivityModerator[]
+  tokens     ActivityToken[]
+  imports    AttendeeImport[]
+  claims     CpdClaim[]
+
+  @@index([providerId, published])
+  @@index([published, releaseDate])
+  @@map("activities")
+}
+
+model ActivityPresenter {
+  id            BigInt    @id @default(autoincrement())
+  activityId    BigInt
+  regNo         String
+  titleId       Int?
+  firstName     String
+  lastName      String
+  otherNames    String?
+  topic         String?
+  portfolio     String?
+  affiliation   String?
+  pointsAwarded Boolean   @default(false)
+  dateProcessed DateTime? @db.Timestamptz
+  legacyId      BigInt?   @unique
+  createdAt     DateTime  @default(now()) @db.Timestamptz
+  updatedAt     DateTime  @updatedAt @db.Timestamptz
+  createdBy     BigInt?
+  updatedBy     BigInt?
+  deletedAt     DateTime? @db.Timestamptz
+  deletedBy     BigInt?
+  activity      Activity  @relation(fields: [activityId], references: [id])
+
+  @@index([activityId, regNo])
+  @@map("activity_presenters")
+}
+
+model ActivityModerator {
+  id            BigInt    @id @default(autoincrement())
+  activityId    BigInt
+  regNo         String
+  titleId       Int?
+  firstName     String
+  middleName    String?
+  lastName      String
+  portfolio     String?
+  pointsAwarded Boolean   @default(false)
+  dateProcessed DateTime? @db.Timestamptz
+  legacyId      BigInt?   @unique
+  createdAt     DateTime  @default(now()) @db.Timestamptz
+  updatedAt     DateTime  @updatedAt @db.Timestamptz
+  createdBy     BigInt?
+  updatedBy     BigInt?
+  deletedAt     DateTime? @db.Timestamptz
+  deletedBy     BigInt?
+  activity      Activity  @relation(fields: [activityId], references: [id])
+
+  @@index([activityId, regNo])
+  @@map("activity_moderators")
+}
+
+enum TokenStatus {
+  unclaimed
+  claimed
+}
+
+model ActivityToken {
+  id         BigInt        @id @default(autoincrement())
+  token      String        @unique
+  activityId BigInt
+  sessionNo  Int           @default(1)
+  batch      String
+  validFrom  DateTime      @db.Date
+  expiryDate DateTime      @db.Date
+  status     TokenStatus   @default(unclaimed)
+  claimedBy  BigInt?
+  claimedAt  DateTime?     @db.Timestamptz
+  issued     Boolean       @default(false)
+  qrCodeUrl  String?
+  legacyId   BigInt?       @unique
+  createdAt  DateTime      @default(now()) @db.Timestamptz
+  updatedAt  DateTime      @updatedAt @db.Timestamptz
+  createdBy  BigInt?
+  updatedBy  BigInt?
+  deletedAt  DateTime?     @db.Timestamptz
+  deletedBy  BigInt?
+  activity   Activity      @relation(fields: [activityId], references: [id])
+  claimer    Practitioner? @relation(fields: [claimedBy], references: [id])
+
+  @@index([activityId, sessionNo])
+  @@index([activityId, batch])
+  @@index([claimedBy, activityId])
+  @@map("activity_tokens")
+}
+
+enum ImportStatus {
+  unprocessed
+  processed
+  failed
+  revoked
+}
+
+model AttendeeImport {
+  id            BigInt       @id @default(autoincrement())
+  activityId    BigInt
+  regNo         String
+  fullName      String?
+  email         String?
+  session       Int          @default(1)
+  status        ImportStatus @default(unprocessed)
+  comment       String?
+  dateProcessed DateTime?    @db.Timestamptz
+  legacyId      BigInt?      @unique
+  createdAt     DateTime     @default(now()) @db.Timestamptz
+  updatedAt     DateTime     @updatedAt @db.Timestamptz
+  createdBy     BigInt?
+  updatedBy     BigInt?
+  deletedAt     DateTime?    @db.Timestamptz
+  deletedBy     BigInt?
+  activity      Activity     @relation(fields: [activityId], references: [id])
+
+  @@index([activityId, regNo, session])
+  @@index([regNo, status])
+  @@map("attendee_imports")
+}
+
+// ─────────────────────── 4.7 Claims and compliance ───────────────────────
+
+enum ClaimMethod {
+  token
+  attendance
+  API
+  nontoken
+}
+
+/// Per-(practitioner, activity) aggregate; the CPD diary ledger.
+model CpdClaim {
+  id              BigInt         @id @default(autoincrement())
+  practitionerId  BigInt
+  activityId      BigInt?
+  nonTokenClaimId BigInt?        @unique
+  method          ClaimMethod
+  methodSource    String?
+  /// Space-separated legacy-style trail, kept for display and backward compatibility.
+  tokenTrail      String         @default("")
+  cpdPoints       Decimal        @default(0) @db.Decimal(8, 2)
+  calYear         Int
+  claimedAt       DateTime       @default(now()) @db.Timestamptz
+  apiClaimId      String?
+  apiActivityName String?
+  legacyId        BigInt?        @unique
+  createdAt       DateTime       @default(now()) @db.Timestamptz
+  updatedAt       DateTime       @updatedAt @db.Timestamptz
+  createdBy       BigInt?
+  updatedBy       BigInt?
+  deletedAt       DateTime?      @db.Timestamptz
+  deletedBy       BigInt?
+  practitioner    Practitioner   @relation(fields: [practitionerId], references: [id])
+  activity        Activity?      @relation(fields: [activityId], references: [id])
+  nonTokenClaim   NonTokenClaim? @relation(fields: [nonTokenClaimId], references: [id])
+  entries         CpdClaimEntry[]
+
+  @@index([practitionerId, calYear])
+  @@index([practitionerId, activityId])
+  @@map("cpd_claims")
+}
+
+/// One row per award event, classified at award time (spec 4.7 "New").
+model CpdClaimEntry {
+  id             BigInt   @id @default(autoincrement())
+  claimId        BigInt
+  kind           String
+  source         String
+  token          String?  @unique
+  points         Decimal  @db.Decimal(8, 2)
+  activityTypeId Int
+  specialityIds  Json     @default("[]")
+  calYear        Int
+  awardedAt      DateTime @default(now()) @db.Timestamptz
+  createdBy      BigInt?
+  claim          CpdClaim @relation(fields: [claimId], references: [id], onDelete: Cascade)
+
+  @@index([claimId])
+  @@index([calYear, activityTypeId])
+  @@map("cpd_claim_entries")
+}
+
+model NonTokenClaim {
+  id             BigInt       @id @default(autoincrement())
+  publicId       String       @unique @default(uuid()) @db.Uuid
+  practitionerId BigInt
+  activityTypeId Int
+  activityName   String
+  description    String
+  beginDate      DateTime     @db.Date
+  endDate        DateTime     @db.Date
+  place          String
+  evidenceUrl    String?
+  specialityIds  Json         @default("[]")
+  claimDate      DateTime     @default(now()) @db.Timestamptz
+  status         String       @default("Pending")
+  approvedAt     DateTime?    @db.Timestamptz
+  approvedBy     BigInt?
+  rejectedAt     DateTime?    @db.Timestamptz
+  rejectedBy     BigInt?
+  legacyId       BigInt?      @unique
+  createdAt      DateTime     @default(now()) @db.Timestamptz
+  updatedAt      DateTime     @updatedAt @db.Timestamptz
+  createdBy      BigInt?
+  updatedBy      BigInt?
+  deletedAt      DateTime?    @db.Timestamptz
+  deletedBy      BigInt?
+  practitioner   Practitioner @relation(fields: [practitionerId], references: [id])
+  activityType   ActivityType @relation(fields: [activityTypeId], references: [id])
+  cpdClaim       CpdClaim?
+
+  @@index([practitionerId, status])
+  @@map("non_token_claims")
+}
+
+model Comment {
+  id                     BigInt    @id @default(autoincrement())
+  profilePractitionerId  BigInt?
+  authorUserId           BigInt?
+  comment                String
+  type                   String
+  itemId                 BigInt?
+  date                   DateTime  @default(now()) @db.Timestamptz
+  legacyId               BigInt?   @unique
+  createdAt              DateTime  @default(now()) @db.Timestamptz
+  deletedAt              DateTime? @db.Timestamptz
+
+  @@index([type, itemId])
+  @@map("comments")
+}
+
+model Exemption {
+  id             BigInt       @id @default(autoincrement())
+  practitionerId BigInt
+  regNo          String?
+  cpdYear        Int
+  reason         String
+  exemptedBy     BigInt?
+  pointsAttained Decimal      @default(0) @db.Decimal(8, 2)
+  postType       String       @default("FORM")
+  ip             String?
+  dateExempted   DateTime     @default(now()) @db.Timestamptz
+  legacyId       BigInt?      @unique
+  createdAt      DateTime     @default(now()) @db.Timestamptz
+  updatedAt      DateTime     @updatedAt @db.Timestamptz
+  createdBy      BigInt?
+  updatedBy      BigInt?
+  deletedAt      DateTime?    @db.Timestamptz
+  deletedBy      BigInt?
+  practitioner   Practitioner @relation(fields: [practitionerId], references: [id])
+
+  @@unique([practitionerId, cpdYear])
+  @@map("exemptions")
+}
+
+// ───────────────────── 4.7.1 Compliance rules ─────────────────────
+
+model ComplianceFramework {
+  id                  Int       @id @default(autoincrement())
+  name                String
+  cpdYearFrom         Int
+  cpdYearTo           Int?
+  scope               String
+  specialityId        Int?
+  userCategoryId      Int?
+  totalRequiredPoints Decimal   @default(50) @db.Decimal(8, 2)
+  active              Boolean   @default(true)
+  notes               String?
+  createdAt           DateTime  @default(now()) @db.Timestamptz
+  updatedAt           DateTime  @updatedAt @db.Timestamptz
+  createdBy           BigInt?
+  updatedBy           BigInt?
+  deletedAt           DateTime? @db.Timestamptz
+  deletedBy           BigInt?
+
+  buckets  ComplianceBucket[]
+  typeCaps ComplianceTypeCap[]
+
+  @@index([scope, specialityId, userCategoryId, cpdYearFrom])
+  @@map("compliance_frameworks")
+}
+
+model ComplianceBucket {
+  id                       Int                 @id @default(autoincrement())
+  frameworkId              Int
+  name                     String
+  source                   String
+  minPoints                Decimal             @default(0) @db.Decimal(8, 2)
+  maxCountablePoints       Decimal?            @db.Decimal(8, 2)
+  minDistinctActivityTypes Int                 @default(1)
+  maxPointsPerActivityType Decimal?            @db.Decimal(8, 2)
+  allowOverflowTo          Int?
+  sortOrder                Int                 @default(0)
+  framework                ComplianceFramework @relation(fields: [frameworkId], references: [id], onDelete: Cascade)
+
+  @@map("compliance_buckets")
+}
+
+model ComplianceTypeCap {
+  id             Int                 @id @default(autoincrement())
+  frameworkId    Int
+  bucketId       Int?
+  activityTypeId Int
+  maxPoints      Decimal             @db.Decimal(8, 2)
+  minPoints      Decimal?            @db.Decimal(8, 2)
+  framework      ComplianceFramework @relation(fields: [frameworkId], references: [id], onDelete: Cascade)
+
+  @@map("compliance_type_caps")
+}
+
+model ComplianceResult {
+  id              BigInt       @id @default(autoincrement())
+  practitionerId  BigInt
+  cpdYear         Int
+  frameworkId     Int?
+  rawPoints       Decimal      @db.Decimal(8, 2)
+  countablePoints Decimal      @db.Decimal(8, 2)
+  buckets         Json         @default("[]")
+  compliant       Boolean
+  exempted        Boolean      @default(false)
+  reasons         Json         @default("[]")
+  computedAt      DateTime     @default(now()) @db.Timestamptz
+  practitioner    Practitioner @relation(fields: [practitionerId], references: [id], onDelete: Cascade)
+
+  @@unique([practitionerId, cpdYear])
+  @@index([cpdYear, compliant])
+  @@map("compliance_results")
+}
+
+// ───────────────────── 4.8 CMS, contact and API ─────────────────────
+
+model Page {
+  id          Int       @id @default(autoincrement())
+  title       String
+  slug        String    @unique
+  status      String    @default("published")
+  description String?
+  content     String?
+  createdAt   DateTime  @default(now()) @db.Timestamptz
+  updatedAt   DateTime  @updatedAt @db.Timestamptz
+  createdBy   BigInt?
+  updatedBy   BigInt?
+  deletedAt   DateTime? @db.Timestamptz
+  deletedBy   BigInt?
+
+  @@map("pages")
+}
+
+model Resource {
+  id           Int       @id @default(autoincrement())
+  title        String
+  link         String?
+  status       String    @default("published")
+  specialities Json      @default("[]")
+  shortFile    String?
+  fullFileName String?
+  filePath     String?
+  details      String?
+  type         String?
+  createdAt    DateTime  @default(now()) @db.Timestamptz
+  updatedAt    DateTime  @updatedAt @db.Timestamptz
+  createdBy    BigInt?
+  updatedBy    BigInt?
+  deletedAt    DateTime? @db.Timestamptz
+  deletedBy    BigInt?
+
+  @@map("resources")
+}
+
+model Contact {
+  id        BigInt   @id @default(autoincrement())
+  name      String
+  email     String
+  phone     String?
+  subject   String
+  message   String
+  ip        String?
+  createdAt DateTime @default(now()) @db.Timestamptz
+
+  @@map("contacts")
+}
+
+model ApiConsumerApp {
+  id          Int       @id @default(autoincrement())
+  publicId    String    @unique @default(uuid()) @db.Uuid
+  name        String    @unique
+  description String?
+  url         String?
+  providerId  BigInt?
+  type        String    @default("WEB")
+  status      String    @default("INACTIVE")
+  note        String?
+  key         String?   @unique
+  secretHash  String?
+  /// Council/board credential: may only call /council/diary.
+  isCouncil   Boolean   @default(false)
+  rotatedAt   DateTime? @db.Timestamptz
+  legacyId    Int?      @unique
+  createdAt   DateTime  @default(now()) @db.Timestamptz
+  updatedAt   DateTime  @updatedAt @db.Timestamptz
+  createdBy   BigInt?
+  updatedBy   BigInt?
+  deletedAt   DateTime? @db.Timestamptz
+  deletedBy   BigInt?
+  provider    Provider? @relation(fields: [providerId], references: [id])
+
+  @@map("api_consumer_apps")
+}
+
+model ApiLog {
+  id         BigInt   @id @default(autoincrement())
+  providerId BigInt?
+  appId      Int?
+  logType    String
+  logDate    DateTime @default(now()) @db.Timestamptz
+  notes      String?
+  createdBy  BigInt?
+
+  @@index([providerId, logDate])
+  @@map("api_logs")
+}
+
+model RequestLog {
+  id         BigInt   @id @default(autoincrement())
+  method     String
+  path       String
+  status     Int
+  durationMs Int
+  ip         String?
+  userId     BigInt?
+  consumerId Int?
+  createdAt  DateTime @default(now()) @db.Timestamptz
+
+  @@index([createdAt])
+  @@map("request_logs")
+}
+
+model AuditLog {
+  id          BigInt   @id @default(autoincrement())
+  actorId     BigInt?
+  subjectType String?
+  subjectId   String?
+  event       String
+  logName     String
+  description String?
+  properties  Json     @default("{}")
+  batchId     String?  @db.Uuid
+  createdAt   DateTime @default(now()) @db.Timestamptz
+
+  @@index([logName, createdAt])
+  @@index([subjectType, subjectId])
+  @@map("audit_log")
+}
+
+model UserLog {
+  id      BigInt   @id @default(autoincrement())
+  userId  BigInt
+  logType String
+  logDate DateTime @default(now()) @db.Timestamptz
+  notes   String?
+
+  @@map("user_logs")
+}
+
+model JobRun {
+  id         BigInt    @id @default(autoincrement())
+  name       String
+  status     String    @default("queued")
+  progress   Int       @default(0)
+  total      Int       @default(0)
+  result     Json?
+  error      String?
+  createdBy  BigInt?
+  createdAt  DateTime  @default(now()) @db.Timestamptz
+  finishedAt DateTime? @db.Timestamptz
+
+  @@map("job_runs")
+}
