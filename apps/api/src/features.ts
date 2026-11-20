@@ -6,6 +6,7 @@ import { PublicModule } from './public/public.controller';
 import { ProvidersModule } from './providers/providers.controller';
 import { ActivitiesModule } from './activities/activities.controller';
 import { ClaimsModule } from './claims/claims.controller';
+import { ComplianceModule } from './compliance/compliance.controller';
 
 /** Feature modules, added phase by phase. */
-export const FEATURE_MODULES: any[] = [JobsModule, MaintenanceModule, SettingsModule, CmsModule, PublicModule, ProvidersModule, ActivitiesModule, ClaimsModule];
+export const FEATURE_MODULES: any[] = [JobsModule, MaintenanceModule, SettingsModule, CmsModule, PublicModule, ProvidersModule, ActivitiesModule, ClaimsModule, ComplianceModule];
