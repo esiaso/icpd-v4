@@ -83,6 +83,12 @@ export class AuthService {
     return user;
   }
 
+  /** Record a successful single sign-on login in auth_logs. */
+  async validateSsoLogin(userId: bigint, client: ClientInfo) {
+    const u = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    await this.prisma.authLog.create({ data: { userId, email: u.email, ip: client.ip, userAgent: client.userAgent, loginSuccessful: true, location: 'osp-sso' } });
+  }
+
   /** Issue a new session (access + refresh family) and notify on a new device. */
   async startSession(userId: bigint, client: ClientInfo): Promise<SessionTokens> {
     const known = await this.prisma.authLog.count({

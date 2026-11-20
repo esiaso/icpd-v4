@@ -17,7 +17,9 @@ function landing(me: { roles: string[]; permissions: string[]; practitionerId: s
 
 function LoginForm() {
   const router = useRouter();
-  const next = useSearchParams().get('next');
+  const sp = useSearchParams();
+  const next = sp.get('next');
+  const ssoError = sp.get('sso_error');
   const form = useZodForm<LoginInput>(loginSchema);
   const { register, handleSubmit, formState } = form;
 
@@ -38,6 +40,7 @@ function LoginForm() {
         <CardDescription>Use the email and password for your ICPD account.</CardDescription>
       </CardHeader>
       <CardContent>
+        {ssoError && <p role="alert" className="mb-4 rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-900">{ssoError}</p>}
         <form onSubmit={onSubmit} className="space-y-4" noValidate>
           <Field label="Email" htmlFor="email" error={formState.errors.email?.message}>
             <Input id="email" type="email" autoComplete="email" {...register('email')} />
@@ -50,7 +53,7 @@ function LoginForm() {
         <div className="mt-4 space-y-2 text-sm">
           <p><Link href="/forgot-password" className="text-primary hover:underline">Forgot your password?</Link></p>
           <p>No account? <Link href="/register" className="text-primary hover:underline">Sign up</Link></p>
-          <p className="text-muted-foreground">Registered before 2021? <Link href="/migrate" className="text-primary hover:underline">Activate your old account</Link> or <a href="/api/auth/osp/login" className="text-primary hover:underline">sign in with OSP</a>.</p>
+          <p className="text-muted-foreground">Registered before 2021? <Link href="/migrate" className="text-primary hover:underline">Activate your old account</Link> or <a href="/osp/login" className="text-primary hover:underline">sign in with OSP</a>.</p>
         </div>
       </CardContent>
     </Card>
