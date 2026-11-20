@@ -65,9 +65,9 @@ export class Client {
   patch(url: string, body?: any) { return this.send('patch', url, body ?? {}); }
   delete(url: string) { return this.send('delete', url); }
 
-  upload(url: string, field: string, file: Buffer, filename: string, fields: Record<string, any> = {}) {
+  upload(url: string, field: string, file: Buffer, filename: string, fields: Record<string, any> = {}, method: 'post' | 'put' = 'post') {
     let r = request(this.app.getHttpServer())
-      .post(`/api${url}`)
+      [method](`/api${url}`)
       .set('Cookie', this.cookies.join('; '))
       .set('x-csrf-token', this.csrf());
     for (const [k, v] of Object.entries(fields)) r = r.field(k, Array.isArray(v) ? JSON.stringify(v) : String(v));
