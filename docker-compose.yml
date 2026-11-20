@@ -1,0 +1,33 @@
+# Local services. Host ports are offset so they don't clash with other stacks on this machine.
+name: icpd
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: icpd
+      POSTGRES_PASSWORD: icpd
+      POSTGRES_DB: icpd
+      TZ: UTC
+    ports: ["55433:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U icpd"]
+      interval: 5s
+      retries: 10
+  redis:
+    image: redis:7-alpine
+    ports: ["6380:6379"]
+  mailpit:
+    image: axllent/mailpit:v1.21
+    ports: ["1026:1025", "8026:8025"]
+  minio:
+    image: bitnamilegacy/minio:2024.10.13
+    environment:
+      MINIO_ROOT_USER: icpd
+      MINIO_ROOT_PASSWORD: icpd-secret
+      MINIO_DEFAULT_BUCKETS: icpd,icpd-backups
+    ports: ["9010:9000", "9011:9001"]
+    volumes: [miniodata:/bitnami/minio/data]
+volumes:
+  pgdata:
+  miniodata:
