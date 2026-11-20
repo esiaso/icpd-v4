@@ -367,7 +367,7 @@ export class LegacyMigration {
           : `COALESCE(${c2('first_name')}::text, '-'), ${c2('middle_name')}::text, COALESCE(${c2('last_name')}::text, '-'), ${c2('portfolio')}::text`;
       await this.exec(model, `
         INSERT INTO ${model} ("legacyId", "activityId", "regNo", ${cols}, "pointsAwarded", "createdAt", "updatedAt", "deletedAt")
-        SELECT x.${pk}, na.id, COALESCE(${this.regNo(c2('regno'))}, '-'), ${values}, COALESCE(${c2('pointsstatus', "'0'")}::text = '1', false),
+        SELECT x.${pk}, na.id, ${this.regNo(c2('regno'))}, ${values}, COALESCE(${c2('pointsstatus', "'0'")}::text = '1', false),
           COALESCE(${this.ts(c2('created_at'))}, now()), now(), ${this.ts(c2('deleted_at'))}
         FROM ${this.t(table)} x JOIN activities na ON na."legacyId" = x.activity_id
         ON CONFLICT ("legacyId") DO UPDATE SET "pointsAwarded" = EXCLUDED."pointsAwarded"`);

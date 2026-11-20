@@ -9,3 +9,5 @@ coverage
 .DS_Store
 apps/api/uploads
 reconciliation-report.json
+.next-*
+*.tsbuildinfo

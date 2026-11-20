@@ -18,7 +18,7 @@ import { TokensService, claimUrl, tokenStatus } from '../tokens/tokens.service';
 
 const dateStr = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const presenterSchema = z.object({
-  regNo: z.string().trim().min(2),
+  regNo: z.string().trim().optional().nullable().transform((v) => (v ? v : null)),
   titleId: z.coerce.number().int().optional().nullable(),
   firstName: z.string().trim().min(1),
   lastName: z.string().trim().min(1),
@@ -28,7 +28,7 @@ const presenterSchema = z.object({
   affiliation: z.string().optional().nullable(),
 });
 const moderatorSchema = z.object({
-  regNo: z.string().trim().min(2),
+  regNo: z.string().trim().optional().nullable().transform((v) => (v ? v : null)),
   titleId: z.coerce.number().int().optional().nullable(),
   firstName: z.string().trim().min(1),
   middleName: z.string().optional().nullable(),
@@ -147,6 +147,12 @@ export class ProviderActivitiesController {
   @Get(':activityId/qr')
   async qr(@Param('activityId') id: string, @Res() res: Response) {
     sendFile(res, await qrPng(claimUrl(id), 600), MIME.png, `activity-${id}-qr.png`, true);
+  }
+
+  /** Look up registered practitioners by reg. no. or name to fill presenter/moderator forms. */
+  @Get(':activityId/practitioner-lookup')
+  lookup(@Query('q') q = '') {
+    return this.activities.lookupPractitioners(q);
   }
 
   // ── presenters ──

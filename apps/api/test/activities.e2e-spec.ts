@@ -94,6 +94,23 @@ describe('activities', () => {
     expect((await client.post(`${base}/${a.id}/moderators`, { regNo: 'B5678', firstName: 'Mo', lastName: 'D' })).status).toBe(201);
   });
 
+  it('reg. no. is optional for presenters/moderators, and the lookup finds practitioners', async () => {
+    const { client, base, p } = await coordinator();
+    const a = await makeActivity(p.id);
+    const r = await client.post(`${base}/${a.id}/presenters`, { firstName: 'Guest', lastName: 'Speaker', affiliation: 'WHO' });
+    expect(r.status).toBe(201);
+    expect(r.body.regNo).toBeNull();
+    expect((await client.post(`${base}/${a.id}/presenters`, { regNo: '', firstName: 'Second', lastName: 'Guest' })).status).toBe(201);
+    expect((await client.post(`${base}/${a.id}/moderators`, { firstName: 'Mod', lastName: 'Erator' })).status).toBe(201);
+    expect((await client.post(`${base}/${a.id}/presenters`, { regNo: 'Q1', firstName: 'Bad', lastName: 'Reg' })).status).toBe(422);
+    const doc = await prisma.practitioner.create({ data: { regNo: 'B98765', firstName: 'Wanjiru', lastName: 'Kamau', workplaceInstitution: 'KNH', status: 'registered' } });
+    const byReg = await client.get(`${base}/${a.id}/practitioner-lookup?q=b 9876`);
+    expect(byReg.body.find((x: any) => x.id === doc.id.toString())).toMatchObject({ regNo: 'B98765', firstName: 'Wanjiru', workplaceInstitution: 'KNH' });
+    const byName = await client.get(`${base}/${a.id}/practitioner-lookup?q=wanjiru kam`);
+    expect(byName.body.some((x: any) => x.regNo === 'B98765')).toBe(true);
+    expect((await client.get(`${base}/${a.id}/practitioner-lookup?q=x`)).body).toEqual([]);
+  });
+
   it('regulator sees all activities', async () => {
     const p = await makeProvider();
     await makeActivity(p.id);

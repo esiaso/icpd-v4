@@ -5,16 +5,17 @@ import { UserMenu } from './user-menu';
 
 const CONTACT_PHONE = process.env.NEXT_PUBLIC_CONTACT_PHONE;
 const CONTACT_EMAIL = process.env.NEXT_PUBLIC_CONTACT_EMAIL;
-const LOGO_URL = process.env.NEXT_PUBLIC_LOGO_URL;
+const LOGO_URL = process.env.NEXT_PUBLIC_LOGO_URL || '/brand/icpd-logo.png';
+const REGULATOR_LOGO_URL = process.env.NEXT_PUBLIC_REGULATOR_LOGO_URL || '/brand/kmpdc-logo.png';
 
-/** "icpd" wordmark; set NEXT_PUBLIC_LOGO_URL to use the official logo image instead. */
+/** ICPD logo (override with NEXT_PUBLIC_LOGO_URL). */
 export function Wordmark({ className = '' }: { className?: string }) {
-  if (LOGO_URL) return <img src={LOGO_URL} alt="ICPD" className={`h-14 w-auto ${className}`} />;
-  return (
-    <span className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full border-2 border-primary text-xl font-bold lowercase tracking-tight text-primary ${className}`} aria-label="ICPD">
-      icpd
-    </span>
-  );
+  return <img src={LOGO_URL} alt="ICPD" width={73} height={86} className={`h-16 w-auto shrink-0 ${className}`} />;
+}
+
+/** Regulator (KMPDC) seal shown on the right of the brand row and in the footer. */
+export function RegulatorLogo({ className = '' }: { className?: string }) {
+  return <img src={REGULATOR_LOGO_URL} alt="Kenya Medical Practitioners and Dentists Council" width={96} height={96} className={`h-20 w-20 shrink-0 ${className}`} />;
 }
 
 const NAV = [
@@ -76,13 +77,14 @@ export async function SiteHeader({ compact = false }: { compact?: boolean }) {
       {/* brand row */}
       {!compact && (
         <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3">
-          <Link href="/" className="flex items-center gap-4">
+          <Link href="/" className="flex flex-1 items-center gap-4">
             <Wordmark />
             <span>
               <span className="block font-heading text-lg font-bold uppercase leading-tight text-muted-foreground sm:text-2xl">Integrated CPD Management System</span>
               <span className="block font-heading text-base italic text-gold sm:text-lg">A National CPD Program</span>
             </span>
           </Link>
+          <RegulatorLogo className="hidden sm:block" />
         </div>
       )}
 
@@ -91,7 +93,7 @@ export async function SiteHeader({ compact = false }: { compact?: boolean }) {
         <div className="mx-auto flex max-w-7xl items-center gap-1 px-2 sm:px-4">
           <nav className="flex flex-1 items-center overflow-x-auto" aria-label="Main">
             <Link href="/" aria-label="Home" className="flex items-center gap-2 px-3 py-3.5 hover:bg-white/10">
-              {compact ? <span className="font-heading text-lg font-bold lowercase">icpd</span> : <Home className="h-4 w-4" />}
+              {compact ? <img src={LOGO_URL} alt="ICPD" className="h-7 w-auto rounded-sm bg-white p-0.5" /> : <Home className="h-4 w-4" />}
             </Link>
             {NAV.map((n) => (
               <Link key={n.href} href={n.href} className="whitespace-nowrap px-3 py-3.5 text-sm font-bold uppercase tracking-wide hover:bg-white/10">{n.label}</Link>
@@ -129,6 +131,7 @@ export function SiteFooter() {
           </div>
         ))}
       </div>
+      <div className="mx-auto flex max-w-7xl justify-center px-4 pb-6 lg:justify-end"><RegulatorLogo /></div>
       <div className="border-t">
         <p className="mx-auto max-w-7xl px-4 py-4 text-xs text-muted-foreground">All material on this website is protected by copyright. ICPD © {new Date().getFullYear()}.</p>
       </div>

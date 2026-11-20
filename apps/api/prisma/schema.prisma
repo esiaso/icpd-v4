@@ -650,7 +650,7 @@ model Activity {
 model ActivityPresenter {
   id            BigInt    @id @default(autoincrement())
   activityId    BigInt
-  regNo         String
+  regNo         String?
   titleId       Int?
   firstName     String
   lastName      String
@@ -676,7 +676,7 @@ model ActivityPresenter {
 model ActivityModerator {
   id            BigInt    @id @default(autoincrement())
   activityId    BigInt
-  regNo         String
+  regNo         String?
   titleId       Int?
   firstName     String
   middleName    String?

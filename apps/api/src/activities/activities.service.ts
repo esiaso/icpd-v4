@@ -160,18 +160,46 @@ export class ActivitiesService {
     return check.normalized;
   }
 
+  /** Reg. no. is optional; when given it must be valid. Without one, no role bonus can be awarded. */
+  private async optionalRegNo(regNo: string | null | undefined) {
+    return regNo && regNo.trim() ? this.regNoOrFail(regNo) : null;
+  }
+
+  async lookupPractitioners(q: string) {
+    const term = q.trim();
+    if (term.length < 2) return [];
+    const reg = normalizeRegNo(term);
+    const words = term.split(/\s+/).filter(Boolean);
+    const rows = await this.prisma.practitioner.findMany({
+      where: {
+        deletedAt: null,
+        regNo: { not: null },
+        OR: [
+          { regNo: { startsWith: reg } },
+          ...(words.length ? [{ AND: words.map((w) => ({ OR: [{ firstName: { contains: w, mode: 'insensitive' as const } }, { lastName: { contains: w, mode: 'insensitive' as const } }, { otherNames: { contains: w, mode: 'insensitive' as const } }] })) }] : []),
+        ],
+      },
+      select: { id: true, regNo: true, titleId: true, firstName: true, otherNames: true, lastName: true, workplaceInstitution: true, status: true, specialization: { select: { name: true } } },
+      orderBy: [{ regNo: 'asc' }],
+      take: 10,
+    });
+    return rows.map((r) => ({ ...r, speciality: r.specialization?.name ?? null, specialization: undefined }));
+  }
+
   async addPerson(kind: 'presenter' | 'moderator', activityId: bigint, input: Record<string, any>, actorId: bigint) {
-    const regNo = await this.regNoOrFail(input.regNo);
+    const regNo = await this.optionalRegNo(input.regNo);
     const model: any = kind === 'presenter' ? this.prisma.activityPresenter : this.prisma.activityModerator;
-    const dup = await model.findFirst({ where: { activityId, regNo, deletedAt: null } });
-    if (dup) throw BadRequest(`This ${kind} is already on the activity.`);
+    if (regNo) {
+      const dup = await model.findFirst({ where: { activityId, regNo, deletedAt: null } });
+      if (dup) throw BadRequest(`This ${kind} is already on the activity.`);
+    }
     const row = await model.create({ data: { ...input, regNo, activityId, createdBy: actorId } });
     await this.audit.log({ actorId, logName: 'activities', event: `${kind}-added`, subjectType: 'activity', subjectId: activityId, properties: { regNo } });
     return row;
   }
 
   async updatePerson(kind: 'presenter' | 'moderator', activityId: bigint, id: bigint, input: Record<string, any>, actorId: bigint) {
-    const regNo = await this.regNoOrFail(input.regNo);
+    const regNo = await this.optionalRegNo(input.regNo);
     const model: any = kind === 'presenter' ? this.prisma.activityPresenter : this.prisma.activityModerator;
     const row = await model.findFirst({ where: { id, activityId, deletedAt: null } });
     if (!row) throw NotFound(kind);

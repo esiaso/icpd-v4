@@ -6,6 +6,8 @@ const API = process.env.API_URL ?? 'http://localhost:4000';
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // NEXT_DIST_DIR lets a check build run without touching a running dev server's .next folder.
+  distDir: process.env.NEXT_DIST_DIR || '.next',
   transpilePackages: ['@icpd/shared'],
   webpack(config) {
     config.resolve.alias['@'] = here;
