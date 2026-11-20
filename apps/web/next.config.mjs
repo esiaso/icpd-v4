@@ -8,6 +8,10 @@ const API = process.env.API_URL ?? 'http://localhost:4000';
 const nextConfig = {
   // NEXT_DIST_DIR lets a check build run without touching a running dev server's .next folder.
   distDir: process.env.NEXT_DIST_DIR || '.next',
+  // Docker builds set NEXT_OUTPUT=standalone for a small self-contained server.
+  ...(process.env.NEXT_OUTPUT === 'standalone'
+    ? { output: 'standalone', experimental: { outputFileTracingRoot: path.join(here, '../..') } }
+    : {}),
   transpilePackages: ['@icpd/shared'],
   webpack(config) {
     config.resolve.alias['@'] = here;

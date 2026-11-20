@@ -1,0 +1,105 @@
+# Staging / production stack for ICPD v4.
+#   cp infra/docker/prod.env.example infra/docker/prod.env   # fill in secrets
+#   docker compose -f infra/docker/compose.prod.yml --env-file infra/docker/prod.env up -d --build
+# Put a TLS reverse proxy (Caddy, nginx, a load balancer) in front of `web` on port 3100.
+# Files go to DigitalOcean Spaces (S3_*); for a self-contained trial start with `--profile minio`.
+name: icpd-prod
+
+x-api-env: &api-env
+  NODE_ENV: production
+  DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+  REDIS_URL: redis://redis:6379
+  APP_URL: ${APP_URL}
+  API_URL: ${APP_URL}
+  CORS_ORIGINS: ${APP_URL}
+  JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+  JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+  MAIL_HOST: ${MAIL_HOST}
+  MAIL_PORT: ${MAIL_PORT}
+  MAIL_USERNAME: ${MAIL_USERNAME}
+  MAIL_PASSWORD: ${MAIL_PASSWORD}
+  MAIL_FROM: ${MAIL_FROM}
+  S3_ENDPOINT: ${S3_ENDPOINT}
+  S3_BUCKET: ${S3_BUCKET}
+  S3_KEY: ${S3_KEY}
+  S3_SECRET: ${S3_SECRET}
+  S3_REGION: ${S3_REGION}
+  BACKUP_BUCKET: ${BACKUP_BUCKET}
+  RECAPTCHA_SECRET: ${RECAPTCHA_SECRET}
+  SSO_SERVER: ${SSO_SERVER}
+  SSO_CLIENT_ID: ${SSO_CLIENT_ID}
+  SSO_CLIENT_SECRET: ${SSO_CLIENT_SECRET}
+  SSO_REDIRECT_URI: ${APP_URL}/api/auth/osp/callback
+  CPD_ANNUAL_REQUIREMENT: ${CPD_ANNUAL_REQUIREMENT:-50}
+  MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-10}
+  SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL}
+  SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: [redisdata:/data]
+
+  # One-shot: apply database migrations before the API starts.
+  migrate:
+    image: icpd-api:${ICPD_TAG:-latest}
+    build: { context: ../.., dockerfile: infra/docker/api.Dockerfile }
+    environment: *api-env
+    command: ["npx", "prisma", "migrate", "deploy"]
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  api:
+    image: icpd-api:${ICPD_TAG:-latest}
+    restart: unless-stopped
+    environment: *api-env
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_started }
+
+  web:
+    image: icpd-web:${ICPD_TAG:-latest}
+    build:
+      context: ../..
+      dockerfile: infra/docker/web.Dockerfile
+      args:
+        API_URL: http://api:4000
+        NEXT_PUBLIC_CONTACT_PHONE: ${NEXT_PUBLIC_CONTACT_PHONE:-}
+        NEXT_PUBLIC_CONTACT_EMAIL: ${NEXT_PUBLIC_CONTACT_EMAIL:-}
+        NEXT_PUBLIC_RECAPTCHA_SITE_KEY: ${NEXT_PUBLIC_RECAPTCHA_SITE_KEY:-}
+    restart: unless-stopped
+    environment:
+      API_URL: http://api:4000
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+    ports: ["${WEB_PORT:-3100}:3100"]
+    depends_on: [api]
+
+  minio:
+    profiles: [minio]
+    image: bitnamilegacy/minio:2024.10.13
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: ${S3_KEY}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET}
+      MINIO_DEFAULT_BUCKETS: ${S3_BUCKET},${BACKUP_BUCKET}
+    volumes: [miniodata:/bitnami/minio/data]
+
+volumes:
+  pgdata:
+  redisdata:
+  miniodata:

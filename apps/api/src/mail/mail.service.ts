@@ -24,6 +24,7 @@ export class MailService implements OnModuleInit, OnModuleDestroy {
   onModuleInit() {
     if (config.disableQueues) return;
     this.queue = new Queue<MailJob>('mail', { connection: redisConnection() });
+    if (process.env.RUN_WORKERS === 'false') return;
     this.worker = new Worker<MailJob>('mail', (job) => this.deliver(job.data), {
       connection: redisConnection(),
       concurrency: 5,

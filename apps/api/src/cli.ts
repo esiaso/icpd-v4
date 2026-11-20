@@ -40,6 +40,8 @@ async function main() {
   }
   if (out) console.log(JSON.stringify(out, (_k, v) => (typeof v === 'bigint' ? v.toString() : v), 2));
   await app.close();
+  // Open Redis connections would otherwise keep the process alive.
+  process.exit(process.exitCode ?? 0);
 }
 main().catch((e) => {
   console.error(e);
