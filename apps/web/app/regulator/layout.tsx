@@ -46,7 +46,7 @@ const NAV: NavGroup[] = [
 export default function RegulatorLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
-      <SiteHeader />
+      <SiteHeader compact />
       <AppShell title="Regulator" nav={NAV}>{children}</AppShell>
     </>
   );

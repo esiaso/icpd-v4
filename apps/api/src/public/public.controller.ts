@@ -13,6 +13,7 @@ const activitySelect = {
   name: true,
   shortTitle: true,
   topic: true,
+  description: true,
   releaseDate: true,
   expiryDate: true,
   deliveryMode: true,
@@ -47,7 +48,7 @@ export class PublicController {
   }
 
   @Get('activities')
-  async activities(@Query(PageQuery()) q: Pagination & { providers?: string; from?: string; to?: string; type?: string }) {
+  async activities(@Query(PageQuery()) q: Pagination & { providers?: string; from?: string; to?: string; type?: string; specialities?: string }) {
     const where: any = { ...PUBLISHED };
     if (q.search) {
       where.OR = [
@@ -58,6 +59,8 @@ export class PublicController {
     }
     if (q.providers) where.providerId = { in: q.providers.split(',').filter(Boolean).map((s) => BigInt(s)) };
     if (q.type) where.activityTypeId = Number(q.type);
+    const specs = (q.specialities ?? '').split(',').filter(Boolean).map(Number);
+    if (specs.length) where.AND = [{ OR: specs.map((s) => ({ specializationAreas: { array_contains: [s] } })) }];
     if (q.from) where.expiryDate = { gte: new Date(`${q.from}T00:00:00Z`) };
     if (q.to) where.releaseDate = { lte: new Date(`${q.to}T00:00:00Z`) };
     const [rows, total] = await Promise.all([

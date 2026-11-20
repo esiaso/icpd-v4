@@ -2,46 +2,66 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Palette taken from icpdkenya.org: navy nav bar (#00335F), teal actions (#0F6675),
+ * gold sign-in (#FFC107), green section headings (#005A00), cyan titles (#17A2B8).
+ */
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 160 20% 10%;
+    --background: 0 0% 98%;
+    --foreground: 0 0% 20%;
     --card: 0 0% 100%;
-    --card-foreground: 160 20% 10%;
-    --primary: 152 69% 19%;
+    --card-foreground: 0 0% 20%;
+    --primary: 189 77% 26%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 150 20% 95%;
-    --secondary-foreground: 160 20% 15%;
-    --muted: 150 15% 96%;
-    --muted-foreground: 160 8% 40%;
-    --accent: 45 90% 92%;
-    --accent-foreground: 30 60% 20%;
-    --destructive: 0 72% 45%;
+    --secondary: 190 25% 95%;
+    --secondary-foreground: 208 60% 18%;
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 42%;
+    --accent: 45 100% 92%;
+    --accent-foreground: 40 80% 22%;
+    --destructive: 0 75% 47%;
     --destructive-foreground: 0 0% 100%;
-    --border: 150 12% 88%;
-    --input: 150 12% 85%;
-    --ring: 152 69% 25%;
-    --radius: 0.5rem;
+    --border: 0 0% 87%;
+    --input: 0 0% 82%;
+    --ring: 189 77% 32%;
+    --radius: 0.25rem;
+
+    --navy: 208 100% 19%;
+    --gold: 45 100% 51%;
+    --heading: 120 100% 18%;
+    --title: 188 78% 41%;
   }
   .dark {
-    --background: 160 20% 7%;
-    --foreground: 150 10% 94%;
-    --card: 160 18% 10%;
-    --card-foreground: 150 10% 94%;
-    --primary: 152 55% 45%;
-    --primary-foreground: 160 20% 7%;
-    --secondary: 160 14% 16%;
-    --secondary-foreground: 150 10% 94%;
-    --muted: 160 14% 14%;
-    --muted-foreground: 150 8% 65%;
-    --accent: 40 40% 20%;
-    --accent-foreground: 45 90% 90%;
+    --background: 208 40% 8%;
+    --foreground: 0 0% 92%;
+    --card: 208 35% 11%;
+    --card-foreground: 0 0% 92%;
+    --primary: 188 60% 45%;
+    --primary-foreground: 208 40% 8%;
+    --secondary: 208 25% 17%;
+    --secondary-foreground: 0 0% 92%;
+    --muted: 208 25% 14%;
+    --muted-foreground: 0 0% 65%;
+    --accent: 45 50% 20%;
+    --accent-foreground: 45 100% 85%;
     --destructive: 0 62% 50%;
     --destructive-foreground: 0 0% 100%;
-    --border: 160 12% 20%;
-    --input: 160 12% 22%;
-    --ring: 152 55% 45%;
+    --border: 208 20% 22%;
+    --input: 208 20% 25%;
+    --ring: 188 60% 45%;
+
+    --navy: 208 100% 14%;
+    --gold: 45 100% 51%;
+    --heading: 120 45% 55%;
+    --title: 188 70% 55%;
   }
   * { @apply border-border; }
   body { @apply bg-background text-foreground antialiased; }
+  h1, h2, h3 { font-family: var(--font-heading), Georgia, serif; }
+}
+
+@layer components {
+  /* Green bold section heading used across icpdkenya.org ("Search CPD Activities") */
+  .section-title { @apply font-sans text-lg font-bold; color: hsl(var(--heading)); }
 }

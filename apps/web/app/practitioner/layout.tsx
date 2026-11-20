@@ -4,7 +4,7 @@ import { AppShell } from '@/components/app-shell';
 export default function PractitionerLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
-      <SiteHeader />
+      <SiteHeader compact />
       <AppShell
         title="My CPD"
         nav={[

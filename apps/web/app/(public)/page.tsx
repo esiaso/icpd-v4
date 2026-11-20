@@ -1,54 +1,45 @@
 import Link from 'next/link';
 import { serverApi } from '@/lib/session';
-import { Card, CardContent } from '@/components/ui';
-import { fmtDate, pts } from '@/lib/utils';
+import { ActivityItem, LoginBox, Panel, ResourcesBox, SearchActivities } from '@/components/public-blocks';
 
 export const dynamic = 'force-dynamic';
 
+/** Home page laid out like icpdkenya.org: search + featured activities, login and resources on the right. */
 export default async function Home() {
   const home = await serverApi<{ featured: any[]; recent: any[]; providers: any[] }>('/public/home');
-  const activities = home ? [...home.featured, ...home.recent.filter((r) => !home.featured.some((f) => f.id === r.id))].slice(0, 6) : [];
+  const activities = home ? [...home.featured, ...home.recent.filter((r) => !home.featured.some((f) => f.id === r.id))].slice(0, 8) : [];
   return (
-    <div className="space-y-12">
-      <section className="rounded-2xl bg-primary px-6 py-12 text-primary-foreground sm:px-10">
-        <h1 className="max-w-2xl text-3xl font-bold sm:text-4xl">Continuing Professional Development for doctors and dentists in Kenya</h1>
-        <p className="mt-3 max-w-xl text-primary-foreground/80">Find accredited CPD activities, claim your points with a token or QR code, and track your annual compliance.</p>
-        <div className="mt-6 flex flex-wrap gap-3">
-          <Link href="/activities" className="rounded-md bg-white px-4 py-2 font-medium text-primary">Browse activities</Link>
-          <Link href="/practitioner/portfolio/claim" className="rounded-md border border-white/50 px-4 py-2 font-medium">Claim points</Link>
-        </div>
-      </section>
-      <section>
-        <div className="mb-4 flex items-end justify-between">
-          <h2 className="text-xl font-semibold">Upcoming and recent activities</h2>
-          <Link href="/activities" className="text-sm text-primary">View all</Link>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {activities.map((a) => (
-            <Link key={a.id} href={`/activities/${a.id}`}>
-              <Card className="h-full transition-shadow hover:shadow-md">
-                <CardContent className="space-y-1 p-4">
-                  <p className="text-xs text-muted-foreground">{a.type?.name} · {pts(a.cpdPoints)} pts/session</p>
-                  <p className="font-semibold">{a.name}</p>
-                  <p className="text-sm text-muted-foreground">{a.provider?.name}</p>
-                  <p className="text-xs text-muted-foreground">{fmtDate(a.releaseDate)} to {fmtDate(a.expiryDate)}</p>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
-          {!activities.length && <p className="text-sm text-muted-foreground">No published activities yet.</p>}
-        </div>
-      </section>
-      {!!home?.providers.length && (
-        <section>
-          <h2 className="mb-4 text-xl font-semibold">CPD providers</h2>
-          <div className="flex flex-wrap gap-2">
-            {home.providers.map((p) => (
-              <Link key={p.id} href={`/provider-directory/${p.id}`} className="rounded-full border px-3 py-1 text-sm hover:bg-secondary">{p.name}</Link>
-            ))}
+    <div className="grid gap-5 lg:grid-cols-[1fr_300px]">
+      <div className="space-y-5">
+        <SearchActivities />
+        <Panel title="Featured CPD Activities">
+          <div className="space-y-3">
+            {activities.map((a) => <ActivityItem key={a.id} a={a} />)}
+            {!activities.length && <p className="text-sm text-muted-foreground">No published activities yet.</p>}
           </div>
-        </section>
-      )}
+          <div className="mt-4"><Link href="/activities" className="text-sm font-medium text-primary hover:underline">All CPD activities »</Link></div>
+        </Panel>
+        {!!home?.providers.length && (
+          <Panel title="CPD Providers">
+            <div className="flex flex-wrap gap-2">
+              {home.providers.map((p) => (
+                <Link key={p.id} href={`/provider-directory/${p.id}`} className="rounded-sm border px-3 py-1 text-sm text-primary hover:bg-secondary">{p.name}</Link>
+              ))}
+            </div>
+          </Panel>
+        )}
+      </div>
+      <aside className="space-y-5">
+        <LoginBox />
+        <Panel title="How to claim" centered>
+          <ol className="list-decimal space-y-1 pl-5 text-sm">
+            <li>Attend an accredited CPD activity.</li>
+            <li>Scan the QR code on your token card, or log in and enter the token.</li>
+            <li>No token? Upload evidence as a non-token claim.</li>
+          </ol>
+        </Panel>
+        <ResourcesBox />
+      </aside>
     </div>
   );
 }

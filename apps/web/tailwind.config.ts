@@ -5,7 +5,15 @@ export default {
   content: ['./app/**/*.{ts,tsx}', './components/**/*.{ts,tsx}'],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['var(--font-sans)', 'Lato', 'Arial', 'sans-serif'],
+        heading: ['var(--font-heading)', 'Georgia', 'serif'],
+      },
       colors: {
+        navy: 'hsl(var(--navy))',
+        gold: 'hsl(var(--gold))',
+        heading: 'hsl(var(--heading))',
+        title: 'hsl(var(--title))',
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',
