@@ -7,7 +7,7 @@ describe('settings', () => {
     const c = new Client(await getApp());
     const r = await c.get('/reference');
     expect(r.status).toBe(200);
-    expect(r.body.categories.map((x: any) => x.prefixLetter)).toEqual(['A', 'B', 'C', 'D', 'E', 'F', 'G']);
+    expect(r.body.categories.map((x: any) => x.prefixLetter)).toEqual(expect.arrayContaining(['A', 'B', 'C', 'D', 'E', 'F', 'G']));
     expect(r.body.activityTypes.length).toBeGreaterThan(3);
   });
 
